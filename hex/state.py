@@ -27,6 +27,7 @@ class GameState:
     exits: list = field(default_factory=list)        # from room text; GMCP doesn't send them
     _partial: str = ""
     _exits_text: str | None = None                   # exit list still wrapping onto the next line
+    _exits_fresh: bool = False                       # exits seen since your last command
 
     def add_text(self, text: str) -> None:
         text = self._partial + strip_ansi(text).replace("\r", "")
@@ -45,6 +46,7 @@ class GameState:
         else:
             return
         self.exits = split_exits(self._exits_text)
+        self._exits_fresh = True
         if self._exits_text.rstrip().endswith("."):
             self._exits_text = None
 
@@ -54,6 +56,7 @@ class GameState:
         self._partial = ""
 
     def add_command(self, cmd: str) -> None:
+        self._exits_fresh = False
         # Never record anything typed while echo is off (i.e. passwords).
         self.lines.append("> <hidden>" if self.hidden_input else f"> {cmd}")
 
@@ -68,7 +71,8 @@ class GameState:
             if rid != self.room_id:
                 self.room_id = rid
                 self.room_changed_at = time.time()
-                self.exits, self._exits_text = [], None
+                if not self._exits_fresh:            # the room text may arrive before this packet
+                    self.exits, self._exits_text = [], None
                 return True
         return False
 

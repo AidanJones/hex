@@ -132,9 +132,9 @@ class HexApp(App, UI):
         Binding("pagedown", "scroll_log(1)", show=False, priority=True),
     ]
 
-    def __init__(self, args) -> None:
+    def __init__(self, args, rooms=None) -> None:
         super().__init__()
-        self.session = Session(args, self)
+        self.session = Session(args, self, rooms)
         self.decoder = AnsiDecoder()
         self.partial = ""
         self.partial_timer = None

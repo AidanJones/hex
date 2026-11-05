@@ -3,16 +3,20 @@ from __future__ import annotations
 
 import asyncio
 import time
+from collections import deque
 from pathlib import Path
 
 from .advisor import Advice, Advisor
 from .knowledge import KnowledgeBase
 from .llm import LLMError, make_llm
+from .rooms import RoomDB, is_move, normalise
 from .state import GameState
 from .telnet import Event, MudConnection, strip_ansi
 
 ROOT = Path(__file__).resolve().parent.parent
 GOALS_FILE = ROOT / "knowledge" / "cache" / "goals.txt"
+ROOMS_FILE = ROOT / "knowledge" / "cache" / "rooms.db"
+MOVE_WINDOW = 3.0       # seconds a typed move can still explain a room change
 
 HELP = """Anything you type goes to the MUD, except lines starting with '/':
   /a [question]   ask Hex (summary + numbered suggestions)
@@ -21,6 +25,8 @@ HELP = """Anything you type goes to the MUD, except lines starting with '/':
   /learn <topic>  send `help <topic>` and save the page to the knowledge base
   /docs <query>   search local notes without calling the LLM
   /goal <text>    tell Hex what you're trying to do
+  /route [place]  show the way to somewhere you've been; /1 takes the next step
+  /notes          list what Hex has noted.   /forget <title> removes one
   /gmcp           list the GMCP packets received so far
   /help, /quit    this text / leave.   //text sends "/text" literally."""
 
@@ -38,14 +44,17 @@ class UI:
 
 
 class Session:
-    def __init__(self, args, ui: UI) -> None:
+    def __init__(self, args, ui: UI, rooms: RoomDB | None = None) -> None:
         self.ui = ui
+        self.rooms = rooms or RoomDB(ROOMS_FILE)
+        self.moves: deque[tuple[str, float]] = deque()   # typed moves awaiting a room change
+        self.destination = ""
         self.state = GameState()
         self.kb = KnowledgeBase(ROOT / "knowledge")
         goals = GOALS_FILE.read_text().strip() if GOALS_FILE.exists() else ""
         self.problem = ""
         try:
-            self.advisor: Advisor | None = Advisor(make_llm(args.backend, args.model), self.kb, goals)
+            self.advisor: Advisor | None = Advisor(make_llm(args.backend, args.model), self.kb, goals, self.rooms)
         except LLMError as e:
             self.problem = f"Hex disabled: {e}"
             self.advisor = None
@@ -75,7 +84,10 @@ class Session:
             self.state.flush_prompt()
             self._finish_capture()
         elif ev.kind == "gmcp":
+            before = self.state.room_id
             moved = self.state.add_gmcp(ev.package, ev.data)
+            if moved:
+                self._record_move(before, ev.data)
             self.ui.show_state()
             if moved and self.auto and time.time() - self.last_auto > 8:   # don't spam while running about
                 self.last_auto = time.time()
@@ -83,6 +95,17 @@ class Session:
         elif ev.kind in ("echo_off", "echo_on"):
             self.state.hidden_input = ev.kind == "echo_off"
             self.ui.show_hidden(self.state.hidden_input)
+
+    def _record_move(self, before: str | None, info: dict) -> None:
+        room = self.state.room_id
+        self.rooms.visit(room, str(info.get("name") or "somewhere"), str(info.get("kind") or ""))
+        now = time.time()
+        while self.moves and now - self.moves[0][1] > MOVE_WINDOW:
+            self.moves.popleft()
+        if self.moves:
+            move, _ = self.moves.popleft()
+            if before:
+                self.rooms.link(before, move, room)
 
     def _finish_capture(self, force: bool = False) -> None:
         if not self.capture:
@@ -94,7 +117,7 @@ class Session:
         self.capture = None
         if text.strip():
             p = self.kb.save_help(topic, text)
-            self.ui.show_note(f"[saved help '{topic}' → {p.relative_to(ROOT)}]", "dim")
+            self.ui.show_note(f"[saved help '{topic}' → {p.name}]", "dim")
 
     # ---- us -> server --------------------------------------------------
     async def ask(self, question: str) -> None:
@@ -108,6 +131,9 @@ class Session:
         try:
             self.last = await asyncio.to_thread(self.advisor.advise, self.state, question)
             self.ui.show_advice(self.last)
+            for n in self.last.remember:
+                if self.kb.save_note(n["title"], n["text"]):
+                    self.ui.show_note(f"[Hex noted: {n['title']}]", "dim")
         except LLMError as e:
             self.ui.show_note(f"+++ Out Of Cheese Error +++ {e}", "error")
         finally:
@@ -118,17 +144,50 @@ class Session:
         if not self.conn.writer:
             self.ui.show_note("Not connected yet.", "error")
             return
+        if not self.state.hidden_input and is_move(line, self.state.exits):
+            self.moves.append((normalise(line), time.time()))
         self.state.add_command(line)
         self.conn.send(line)
+
+    def learn(self, topic: str) -> None:
+        self.capture = (topic, [], time.time())
+        self.send(f"help {topic}")
+        asyncio.get_running_loop().call_later(5, self._finish_capture, True)
+
+    def route(self, place: str) -> None:
+        place = place or self.destination
+        here = self.state.room_id
+        if not place or not here:
+            self.ui.show_note("Usage: /route <place you've been>. Needs room data from the game.")
+            return
+        rooms = self.rooms.find(place)
+        if not rooms:
+            self.ui.show_note(f"You haven't been anywhere matching '{place}' yet.")
+            return
+        self.destination = place
+        if any(r.id == here for r in rooms):
+            self.ui.show_note("You're there.")
+            return
+        for room in rooms:
+            path = self.rooms.route(here, room.id)
+            if path:
+                self.last = Advice(f"{room.name}: {', '.join(path)}",
+                                   suggestions=[{"command": path[0], "why": "next step; /route again after"}])
+                self.ui.show_advice(self.last)
+                return
+        self.ui.show_note(f"No known way to {rooms[0].name} from here.")
 
     def pick(self, n: int) -> None:
         """Send suggestion n (1-based). Only ever called from a human keypress."""
         if self.state.hidden_input:
             self.ui.show_note("Not while the game is asking for a password.", "error")
         elif self.last and 1 <= n <= len(self.last.suggestions):
-            c = self.last.suggestions[n - 1]["command"]
-            self.ui.show_note(f"→ {c}", "dim")
-            self.send(c)
+            s = self.last.suggestions[n - 1]
+            self.ui.show_note(f"→ {s['command']}", "dim")
+            if s.get("learn"):
+                self.learn(s["learn"])
+            else:
+                self.send(s["command"])
         else:
             self.ui.show_note("No such suggestion. /a to ask first.")
 
@@ -152,9 +211,19 @@ class Session:
             self.auto = not self.auto
             self.ui.show_note(f"auto-advice on room change: {'ON' if self.auto else 'off'}")
         elif cmd == "learn" and arg.strip():
-            self.capture = (arg.strip(), [], time.time())
-            self.send(f"help {arg.strip()}")
-            asyncio.get_running_loop().call_later(5, self._finish_capture, True)
+            self.learn(arg.strip())
+        elif cmd == "route":
+            self.route(arg.strip())
+        elif cmd == "notes":
+            notes = self.kb.notes()
+            for title, text in notes.items():
+                self.ui.show_note(title, "head")
+                self.ui.show_note(text)
+            if not notes:
+                self.ui.show_note("Hex hasn't noted anything yet.")
+        elif cmd == "forget":
+            found = self.kb.forget_note(arg)
+            self.ui.show_note("Forgotten." if found else "No note with that title.")
         elif cmd == "docs":
             for c in self.kb.search(arg, k=3):
                 self.ui.show_note(f"[{c.source} :: {c.title}]", "head")

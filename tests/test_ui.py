@@ -5,6 +5,7 @@ from unittest import mock
 
 from hex.advisor import Advice
 from hex.minimap import parse_map, plain_map
+from hex.rooms import RoomDB
 from hex.session import Session, UI
 from hex.state import GameState
 from hex.telnet import IAC, OPT_ECHO, WILL, WONT, gmcp_frame
@@ -54,8 +55,16 @@ class StateTests(unittest.TestCase):
         s = GameState()
         s.add_text("There are four obvious exits: north, south,\nnortheast and west.\nA cat is here.\n")
         self.assertEqual(s.exits, ["north", "south", "northeast", "west"])
+        s.add_command("north")
         s.add_gmcp("room.info", {"identifier": "2"})
         self.assertEqual(s.exits, [])
+
+    def test_exits_kept_when_room_text_beats_the_gmcp_packet(self):
+        s = GameState()
+        s.add_command("north")
+        s.add_text("There is one obvious exit: south.\n")
+        s.add_gmcp("room.info", {"identifier": "2"})
+        self.assertEqual(s.exits, ["south"])
 
     def test_vitals_merge(self):
         s = GameState()
@@ -67,7 +76,7 @@ class StateTests(unittest.TestCase):
 class PasswordTests(unittest.IsolatedAsyncioTestCase):
     async def test_slash_password_is_not_a_hex_command(self):
         with mock.patch.dict("os.environ", {"MINIMAX_API_KEY": "k"}):
-            s = Session(args(), UI())
+            s = Session(args(), UI(), RoomDB())
         s.conn.writer = mock.Mock()
         s.advisor = mock.Mock()
         s.state.hidden_input = True
@@ -79,7 +88,7 @@ class PasswordTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_suggestion_blocked_at_password_prompt(self):
         with mock.patch.dict("os.environ", {"MINIMAX_API_KEY": "k"}):
-            s = Session(args(), UI())
+            s = Session(args(), UI(), RoomDB())
         s.conn.writer = mock.Mock()
         s.last = Advice(suggestions=[{"command": "look"}])
         s.state.hidden_input = True
@@ -114,7 +123,7 @@ class TuiTests(unittest.IsolatedAsyncioTestCase):
 
     def app(self):
         with mock.patch.dict("os.environ", {"MINIMAX_API_KEY": "k"}):
-            return HexApp(args(self.port))
+            return HexApp(args(self.port), RoomDB())
 
     @staticmethod
     def log_text(app):

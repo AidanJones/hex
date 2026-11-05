@@ -45,7 +45,23 @@ room name and exits, HP/GP bars, and Hex's latest advice. The password box hides
 itself the moment the game asks. Below 90 columns the right side folds away.
 Without Textual, or with `--plain`, Hex is a plain scrolling terminal.
 
-If the map stays empty, type `/gmcp` to see which packets have arrived.
+If the map stays empty, type `/gmcp` to see which packets have arrived, and try
+`options output map frame = on` in game.
+
+## What Hex knows
+
+- **Official guides:** `python -m hex.guides` saves Discworld's newbie guides and key
+  concept pages to `knowledge/cache/` (about 2 minutes, `--all` for every concept
+  page). They're copyright Discworld MUD, so they stay in that git-ignored folder.
+- **In-game help:** Hex can offer a help page as a suggestion. Choosing it reads the
+  page and saves it, the same as `/learn`.
+- **Its own notes:** Hex records lasting facts it sees in `hex-notes.md`. See them with
+  `/notes`, and remove any with `/forget <title>`. Other players' words reach it too,
+  so check these now and then.
+- **Where you've been:** every room you walk through goes into `rooms.db`. `/route
+  <place>` shows the way, one step at a time, using only moves you've made.
+- **Your own material:** drop `.md` files into `knowledge/`. The community wiki isn't
+  imported automatically, because its `robots.txt` bars Claude's crawler by name.
 
 Settings live in `.env` (git-ignored); real environment variables and
 command-line flags override it. Supported backends (`HEX_BACKEND`):
@@ -71,6 +87,8 @@ Everything you type goes to the MUD, except lines starting with `/`:
 | `/learn <topic>` | sends `help <topic>` and saves the page to `knowledge/cache/` |
 | `/docs <query>` | search local notes, no LLM call |
 | `/goal <text>` | tell it what you're aiming for ("join the witches", "earn money in AM") |
+| `/route [place]` | show the way to somewhere you've been; `/1` takes the next step |
+| `/notes`, `/forget <title>` | list or remove Hex's own notes |
 | `/gmcp` | list the GMCP packets received so far |
 | `//text` | send a line that starts with `/` |
 
@@ -101,16 +119,22 @@ the game text and Ctrl+Q quits.
 
 Discworld does not allow bots or triggers that send commands for you. This tool
 is built around that: the LLM only advises, and every command is something you
-read and chose to send. Read `help rules` in game, and if you're unsure whether
-something is OK, ask a creator. Please keep it that way in any fork.
+read and chose to send.
+
+**That may not be enough on its own.** `help automation` also asks players not to
+use scripts or plugins that trivialise the game, and its examples include tools
+that read the game's output and recommend your next action. Hex is close to that
+line, so ask a liaison about it before relying on it. Hex is told not to solve
+puzzles or plan out repetitive tasks, but that is an instruction to a model, not a
+guarantee. Please keep all of this in any fork.
 
 ## Roadmap
 
 - [x] Split-pane TUI (game left, Hex right) with Textual
-- [ ] Use Discworld's `room.writtenmap` / map frames for "how do I get to X"
+- [x] Room database and routes for "how do I get to X"
 - [ ] Import selected pages from the community wiki into `knowledge/` (with credit)
 - [ ] Explain mode: highlight any line and ask "what does this mean?"
-- [ ] Session memory: a running journal of quests, NPCs and places across sessions
+- [x] Session memory: Hex's own notes, plus the room database
 - [ ] Web front end (browser client + Hex panel)
 
 ## Prior art

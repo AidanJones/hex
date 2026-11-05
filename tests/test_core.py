@@ -61,7 +61,7 @@ class StateTests(unittest.TestCase):
 
 class KnowledgeTests(unittest.TestCase):
     def test_search_finds_death_notes(self):
-        kb = KnowledgeBase(ROOT / "knowledge")
+        kb = KnowledgeBase(ROOT / "knowledge" / "core")
         hits = kb.search("I died, where is my corpse")
         self.assertTrue(any("Death" in c.title for c in hits))
 
@@ -81,7 +81,7 @@ class AdvisorTests(unittest.TestCase):
         llm = FakeLLM()
         s = GameState()
         s.add_text("You are standing in Pumpkin Town square.\n")
-        a = Advisor(llm, KnowledgeBase(ROOT / "knowledge")).advise(s, "how do I learn skills?")
+        a = Advisor(llm, KnowledgeBase(ROOT / "knowledge" / "core")).advise(s, "how do I learn skills?")
         self.assertEqual(a.suggestions[0]["command"], "look")
         self.assertIn("Pumpkin Town square", llm.last_user)
         self.assertIn("teach", llm.last_user)  # retrieved progression notes
