@@ -5,3 +5,4 @@ __pycache__/
 knowledge/cache/*
 !knowledge/cache/.gitkeep
 .env
+logs/

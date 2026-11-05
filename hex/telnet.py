@@ -39,6 +39,12 @@ class TelnetParser:
         self.buf = bytearray()
         self.sb = bytearray()
         self.cmd = 0
+        self.gmcp_on = False
+
+    def _gmcp_ready(self, events: list[Event]) -> None:
+        if not self.gmcp_on:            # say hello once, however the server offers it
+            self.gmcp_on = True
+            events.append(Event("gmcp_ready"))
 
     def feed(self, data: bytes) -> tuple[list[Event], bytes]:
         events: list[Event] = []
@@ -98,7 +104,10 @@ class TelnetParser:
             if opt == OPT_ECHO:      # server will echo => it's hiding our input (password)
                 events.append(Event("echo_off"))
                 return bytes([IAC, DO, opt])
-            if opt in (OPT_GMCP, OPT_EOR):
+            if opt == OPT_GMCP:          # the normal way: server offers, client accepts
+                self._gmcp_ready(events)
+                return bytes([IAC, DO, opt])
+            if opt == OPT_EOR:
                 return bytes([IAC, DO, opt])
             return bytes([IAC, DONT, opt])
         if cmd == WONT:
@@ -107,7 +116,7 @@ class TelnetParser:
             return b""
         if cmd == DO:
             if opt == OPT_GMCP:
-                events.append(Event("gmcp_ready"))
+                self._gmcp_ready(events)
                 return bytes([IAC, WILL, opt])
             return bytes([IAC, WONT, opt])
         return b""  # DONT: nothing to do

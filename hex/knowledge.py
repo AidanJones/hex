@@ -15,6 +15,8 @@ from pathlib import Path
 
 TOKEN = re.compile(r"[a-z0-9']+")
 NOTES_FILE = "hex-notes.md"
+SITUATION = "Current situation"
+COMMAND_PREFIX = "Command: "
 MAX_NOTES = 300
 STOP = set("the a an of to and or in on is it you your for with at be this that are as by from "
            "i me my we how do does did what when where why who can could should would will am".split())
@@ -130,6 +132,11 @@ class KnowledgeBase:
         notes[title] = text
         self._write_notes(dict(list(notes.items())[-MAX_NOTES:]))
         return True
+
+    def commands(self) -> list[str]:
+        """Commands Hex has recorded, newest first, cut off where you fill in a value."""
+        names = [t[len(COMMAND_PREFIX):] for t in self.notes() if t.startswith(COMMAND_PREFIX)]
+        return [n.split("<")[0] for n in reversed(names)]
 
     def forget_note(self, title: str) -> bool:
         notes = self.notes()

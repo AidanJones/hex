@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from .knowledge import STOP
 
 SLASH = ["/a ", "/auto", "/docs ", "/forget ", "/gmcp", "/goal ", "/help", "/learn ",
-         "/name", "/notes", "/quit", "/route "]
+         "/name", "/notes", "/quit", "/route ", "/stats", "/watch"]
 VERBS = ["browse", "buy", "close", "consider", "drink", "drop", "eat", "follow", "get", "give",
          "glance", "help", "hold", "inventory", "kill", "learn", "list", "look", "map", "open",
          "read", "remove", "say", "score", "skills", "stop", "teach", "tell", "wear"]
@@ -20,6 +20,7 @@ class Context:
     suggestions: list[str] = field(default_factory=list)    # Hex's current advice
     exits: list[str] = field(default_factory=list)
     history: list[str] = field(default_factory=list)        # newest first
+    commands: list[str] = field(default_factory=list)       # recorded by Hex
     words: list[str] = field(default_factory=list)          # from recent game text
     topics: list[str] = field(default_factory=list)         # help pages Hex knows about
     rooms: list[str] = field(default_factory=list)          # names for /route
@@ -56,7 +57,7 @@ def complete(line: str, ctx: Context) -> str | None:
         options = {"/route": ctx.rooms, "/forget": ctx.notes, "/learn": ctx.topics}.get(head, [])
         rest = _finish(tail, options) if tail else None
         return f"{head} {rest}" if rest else None
-    whole = _finish(line, ctx.suggestions + ctx.exits + ctx.history + VERBS)
+    whole = _finish(line, ctx.suggestions + ctx.exits + ctx.history + ctx.commands + VERBS)
     if whole or not space:
         return whole
     before, _, word = line.rpartition(" ")

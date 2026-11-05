@@ -83,6 +83,7 @@ def main() -> None:
     p.add_argument("--model", default=None)
     p.add_argument("--auto", action="store_true", help="advise automatically on room change")
     p.add_argument("--plain", action="store_true", help="plain scrolling terminal instead of the split-screen interface")
+    p.add_argument("--no-log", action="store_true", help="don't keep a session log in logs/")
     args = p.parse_args()
     if not args.plain:
         try:

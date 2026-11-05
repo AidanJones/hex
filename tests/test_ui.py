@@ -24,7 +24,7 @@ ROOM_MAP = ("\x1b[3z\x1b[4zMXP<RedMXP>+\x1b[3z     \x1b[3z\x1b[4zMXP<RedMXP>+\x1
 
 
 def args(port=1):
-    return argparse.Namespace(host="127.0.0.1", port=port, backend="minimax", model=None, auto=False)
+    return argparse.Namespace(host="127.0.0.1", port=port, backend="minimax", model=None, auto=False, no_log=True)
 
 
 class MinimapTests(unittest.TestCase):
@@ -204,6 +204,15 @@ class TuiTests(unittest.IsolatedAsyncioTestCase):
             with mock.patch("hex.tui.subprocess.run"):
                 await pilot.press("ctrl+c")
             self.assertEqual(app.clipboard, "Rincewind")
+
+    async def test_score_appears_under_vitals(self):
+        v = render_vitals({"hp": 400, "maxhp": 500},
+                          {"hp": 500, "maxhp": 500, "lives_left": 2, "deaths": 5, "guild": "Witches",
+                           "level": 3, "quest_points": 1, "quest_max": 776})
+        self.assertIn("400/500", v.plain)                   # live number wins
+        self.assertIn("Lives left 2  Deaths 5", v.plain)
+        self.assertIn("Witches level 3", v.plain)
+        self.assertIn("Quest points 1/776", v.plain)
 
     async def test_tab_completes_without_sending(self):
         app = self.app()

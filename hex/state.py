@@ -7,6 +7,7 @@ import time
 from collections import deque
 from dataclasses import dataclass, field
 
+from . import score
 from .telnet import strip_ansi
 
 EXITS_RE = re.compile(r"(?:obvious exits?|^Exits):\s*(.*)", re.I)
@@ -25,6 +26,8 @@ class GameState:
     room_changed_at: float = 0.0
     hidden_input: bool = False                       # True while server hides echo (password)
     exits: list = field(default_factory=list)        # from room text; GMCP doesn't send them
+    score: dict = field(default_factory=dict)        # latest `score` output you ran
+    _score_lines: list | None = None                 # `score` output still arriving
     _partial: str = ""
     _exits_text: str | None = None                   # exit list still wrapping onto the next line
     _exits_fresh: bool = False                       # exits seen since your last command
@@ -36,6 +39,19 @@ class GameState:
             if ln.strip():
                 self.lines.append(ln)
                 self._scan_exits(ln)
+                self._scan_score(ln)
+
+    def _scan_score(self, line: str) -> None:
+        if score.START.match(line):
+            self._score_lines = []
+        if self._score_lines is None:
+            return
+        self._score_lines.append(line)
+        if score.END.search(line):
+            self.score = score.parse_score(self._score_lines)
+            self._score_lines = None
+        elif len(self._score_lines) >= score.MAX_LINES:
+            self._score_lines = None
 
     def _scan_exits(self, line: str) -> None:
         m = EXITS_RE.search(line)
@@ -82,4 +98,6 @@ class GameState:
     def gmcp_summary(self) -> str:
         keep = {k: v for k, v in self.gmcp.items()
                 if k in ("char.vitals", "char.info", "room.info", "room.writtenmap")}
+        if self.score:
+            keep = {"last score command": self.score, **keep}
         return json.dumps(keep, indent=1, default=str)[:4000] if keep else "(no GMCP data yet)"

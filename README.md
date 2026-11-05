@@ -50,6 +50,10 @@ Without Textual, or with `--plain`, Hex is a plain scrolling terminal.
 If the map stays empty, type `/gmcp` to see which packets have arrived, and try
 `options output map frame = on` in game.
 
+Each session is saved to `logs/`, one file per session and git-ignored, with the game
+text, what you typed and Hex's advice. Passwords appear as `<hidden>`. Other players'
+words are in there too, so take care if you share one. `--no-log` turns this off.
+
 ## What Hex knows
 
 - **Official guides:** `uv run python -m hex.guides` saves Discworld's newbie guides and key
@@ -57,13 +61,21 @@ If the map stays empty, type `/gmcp` to see which packets have arrived, and try
   page). They're copyright Discworld MUD, so they stay in that git-ignored folder.
 - **In-game help:** Hex can offer a help page as a suggestion. Choosing it reads the
   page and saves it, the same as `/learn`.
-- **Its own notes:** Hex records lasting facts it sees in `hex-notes.md`. See them with
-  `/notes`, and remove any with `/forget <title>`. Other players' words reach it too,
-  so check these now and then.
+- **Its own notes:** Hex has standing orders to track what you're doing, write down
+  tutorial lessons and list useful commands, all in `hex-notes.md`. Those commands join
+  your Tab completion. See everything with `/notes`, and remove any with
+  `/forget <title>`. Other players' words reach it too, so check these now and then.
+- **Watching as you play:** after 40 new lines of game text, and at most every 2
+  minutes, Hex takes a quiet look to update its notes. It shows and sends nothing, but
+  each look is an LLM call you pay for. `/watch` turns this off.
 - **Where you've been:** every room you walk through goes into `rooms.db`. `/route
   <place>` shows the way, one step at a time, using only moves you've made.
 - **Your character name:** saved to `player.txt` when you log in, and shown when you
   connect or type `/name`. Your password is never saved.
+- **Your character sheet:** whenever you type `score`, Hex reads the result and keeps
+  it in `characters.json`, per character. Lives left, guild and quest points appear
+  under Vitals, Hex sees them too, and `/stats` lists everything. Hex never sends
+  `score` for you, so these numbers are from the last time you did.
 - **Your own material:** drop `.md` files into `knowledge/`. The community wiki isn't
   imported automatically, because its `robots.txt` bars Claude's crawler by name.
 
@@ -93,6 +105,8 @@ Everything you type goes to the MUD, except lines starting with `/`:
 | `/goal <text>` | tell it what you're aiming for ("join the witches", "earn money in AM") |
 | `/route [place]` | show the way to somewhere you've been; `/1` takes the next step |
 | `/notes`, `/forget <title>` | list or remove Hex's own notes |
+| `/name`, `/stats` | show your saved character name, or your last `score` |
+| `/watch` | toggle Hex quietly keeping notes as you play |
 | `/gmcp` | list the GMCP packets received so far |
 | `//text` | send a line that starts with `/` |
 

@@ -34,6 +34,14 @@ class TelnetTests(unittest.TestCase):
         evs, _ = p.feed(bytes([IAC, WONT, OPT_ECHO]))
         self.assertEqual(evs[0].kind, "echo_on")
 
+    def test_server_offering_gmcp_gets_a_hello(self):
+        p = TelnetParser()
+        evs, reply = p.feed(bytes([IAC, WILL, OPT_GMCP]))
+        self.assertEqual(reply, bytes([IAC, DO, OPT_GMCP]))
+        self.assertEqual([e.kind for e in evs], ["gmcp_ready"])
+        evs, _ = p.feed(bytes([IAC, DO, OPT_GMCP]))
+        self.assertEqual(evs, [])                            # only once
+
     def test_escaped_iac(self):
         evs, _ = TelnetParser().feed(b"a" + bytes([IAC, IAC]) + b"b")
         self.assertEqual(evs[0].text.encode("utf-8", "surrogateescape")[:1], b"a")

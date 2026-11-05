@@ -66,7 +66,9 @@ def bar(label: str, value: object, top: object, width: int = 20) -> Text:
     return out
 
 
-def render_vitals(v: dict) -> Text:
+def render_vitals(v: dict, score: dict | None = None) -> Text:
+    score = score or {}
+    v = {**score, **v}                  # live GMCP numbers beat the last `score`
     if not v:
         return Text("Waiting for the game…", style="dim")
     rows = [bar("HP", v.get("hp"), v.get("maxhp")), bar("GP", v.get("gp"), v.get("maxgp"))]
@@ -79,6 +81,14 @@ def render_vitals(v: dict) -> Text:
         rows.append(Text("  ".join(extra)))
     if v.get("alignment"):
         rows.append(Text(str(v["alignment"]), style="dim"))
+    if "lives_left" in score:
+        left = score["lives_left"]
+        rows.append(Text(f"Lives left {left}  Deaths {score.get('deaths', '?')}",
+                         style="red" if isinstance(left, int) and left <= 2 else ""))
+    if "guild" in score:
+        rows.append(Text(f"{score['guild']} level {score.get('level', '?')}"))
+    if "quest_points" in score:
+        rows.append(Text(f"Quest points {score['quest_points']}/{score.get('quest_max', '?')}"))
     return Text("\n").join(rows)
 
 
@@ -301,7 +311,7 @@ class HexApp(App, UI):
 
     def show_state(self) -> None:
         s = self.session.state
-        self.query_one("#vitals", Static).update(render_vitals(s.gmcp.get("char.vitals") or {}))
+        self.query_one("#vitals", Static).update(render_vitals(s.gmcp.get("char.vitals") or {}, s.score))
         panel = self.query_one("#map", Static)
         if "room.map" in s.gmcp:
             panel.update(render_map(s.gmcp["room.map"]))
