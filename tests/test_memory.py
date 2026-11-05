@@ -107,6 +107,45 @@ class SessionRoomTests(unittest.TestCase):
         self.assertEqual(len(s.moves), 0)
 
 
+class PlayerNameTests(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.dir.cleanup)
+        self.s = session()
+        self.s.player = ""
+        self.s.player_file = Path(self.dir.name) / "player.txt"
+
+    def echo_off(self):
+        self.s.on_event(mock.Mock(kind="echo_off"))
+
+    def test_name_typed_before_password_prompt_is_kept(self):
+        self.s.send("Rincewind")
+        self.echo_off()
+        self.assertEqual(self.s.player_file.read_text(), "Rincewind")
+
+    def test_password_is_never_kept(self):
+        self.s.send("Rincewind")
+        self.echo_off()
+        self.s.send("hunter")                                # typed with echo off
+        self.echo_off()                                      # wrong password, asked again
+        self.assertEqual(self.s.player_file.read_text(), "Rincewind")
+
+    def test_password_command_in_game_is_not_a_name(self):
+        self.s.on_event(mock.Mock(kind="gmcp", package="room.info", data=room("a")))
+        self.s.send("password")
+        self.echo_off()
+        self.assertFalse(self.s.player_file.exists())
+
+    def test_login_words_are_not_names(self):
+        self.s.send("new")
+        self.echo_off()
+        self.assertFalse(self.s.player_file.exists())
+
+    def test_gmcp_name_wins(self):
+        self.s.on_event(mock.Mock(kind="gmcp", package="char.info", data={"capname": "Twoflower"}))
+        self.assertEqual(self.s.player_file.read_text(), "Twoflower")
+
+
 class NoteTests(unittest.TestCase):
     def test_note_is_searchable_replaced_and_forgotten(self):
         with tempfile.TemporaryDirectory() as d:

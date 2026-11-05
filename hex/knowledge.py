@@ -90,6 +90,12 @@ class KnowledgeBase:
                 break
         return out
 
+    def topics(self) -> list[str]:
+        """Names of the help and guide pages saved locally."""
+        names = {re.sub(r"^(guide_(newbie|concepts)|help)_", "", p.stem)
+                 for p in (self.root / "cache").glob("*.md") if p.name != NOTES_FILE}
+        return sorted(names)
+
     def _help_path(self, topic: str) -> Path:
         safe = re.sub(r"[^a-z0-9_-]+", "_", topic.lower()).strip("_") or "topic"
         return self.root / "cache" / f"help_{safe}.md"

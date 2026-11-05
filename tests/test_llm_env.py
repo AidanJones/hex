@@ -42,7 +42,7 @@ class LLMTests(unittest.TestCase):
         self.assertEqual(out, '{"summary":"ok"}')
         self.assertEqual(sent["url"], "https://api.minimax.io/v1/chat/completions")
         self.assertEqual(sent["headers"]["authorization"], "Bearer k")
-        self.assertEqual(sent["payload"]["model"], "MiniMax-M2.5")
+        self.assertEqual(sent["payload"]["model"], "MiniMax-M3")
         self.assertGreaterEqual(sent["payload"]["max_tokens"], 4000)
 
     def test_minimax_needs_key(self):

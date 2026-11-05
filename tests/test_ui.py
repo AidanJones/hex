@@ -188,6 +188,48 @@ class TuiTests(unittest.IsolatedAsyncioTestCase):
             log = app.query_one("#log")
             self.assertLessEqual(max(s.cell_length for s in log.lines), log.scrollable_content_region.width)
 
+    async def test_mouse_selects_and_copies_game_text(self):
+        app = self.app()
+        async with app.run_test(size=(120, 40)) as pilot:
+            await self.start(pilot)
+            await self.server_says(pilot, b"Your name is Rincewind\r\n")
+            log = app.query_one("#log")
+            row = next(i for i, s in enumerate(log.lines) if "Rincewind" in s.text) + 1
+            await pilot.mouse_down(log, offset=(14, row))
+            await pilot.hover(log, offset=(23, row))
+            await pilot.mouse_up(log, offset=(23, row))
+            await pilot.pause()
+            self.assertEqual(app.screen.get_selected_text(), "Rincewind")
+            self.assertTrue(app.query_one("#input").has_focus)
+            with mock.patch("hex.tui.subprocess.run"):
+                await pilot.press("ctrl+c")
+            self.assertEqual(app.clipboard, "Rincewind")
+
+    async def test_tab_completes_without_sending(self):
+        app = self.app()
+        async with app.run_test(size=(120, 40)) as pilot:
+            await self.start(pilot)
+            await self.server_says(pilot, b"There are two obvious exits: north and east.\r\n")
+            await pilot.press("n", "o")
+            await pilot.pause(0.1)
+            await pilot.press("tab")
+            await pilot.pause(0.1)
+            box = app.query_one("#input")
+            self.assertEqual(box.value, "north")
+            self.assertTrue(box.has_focus)
+            self.assertNotIn(b"north", bytes(self.received))
+
+    async def test_no_completion_at_password_prompt(self):
+        app = self.app()
+        async with app.run_test(size=(120, 40)) as pilot:
+            await self.start(pilot)
+            await self.server_says(pilot, b"Password: " + bytes([IAC, WILL, OPT_ECHO]))
+            await pilot.press("l", "o")
+            await pilot.pause(0.1)
+            await pilot.press("tab")
+            await pilot.pause(0.1)
+            self.assertEqual(app.query_one("#input").value, "lo")
+
     async def test_prompt_without_newline_appears(self):
         app = self.app()
         async with app.run_test(size=(120, 40)) as pilot:

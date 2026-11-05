@@ -15,6 +15,10 @@ dependencies = []
 [project.optional-dependencies]
 tui = ["textual>=8"]
 
+# `uv sync` and `uv run` install the dev group by default, so they include Textual.
+[dependency-groups]
+dev = ["hex[tui]"]
+
 [project.scripts]
 hex = "hex.cli:main"
 

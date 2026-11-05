@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import time
 from collections import deque
 from pathlib import Path
 
 from .advisor import Advice, Advisor
+from .complete import Context, complete, recent_words
 from .knowledge import KnowledgeBase
 from .llm import LLMError, make_llm
 from .rooms import RoomDB, is_move, normalise
@@ -16,6 +18,8 @@ from .telnet import Event, MudConnection, strip_ansi
 ROOT = Path(__file__).resolve().parent.parent
 GOALS_FILE = ROOT / "knowledge" / "cache" / "goals.txt"
 ROOMS_FILE = ROOT / "knowledge" / "cache" / "rooms.db"
+PLAYER_FILE = ROOT / "knowledge" / "cache" / "player.txt"
+NOT_A_NAME = {"new", "guest", "quit", "who", "finger"}     # other answers at the login prompt
 MOVE_WINDOW = 3.0       # seconds a typed move can still explain a room change
 
 HELP = """Anything you type goes to the MUD, except lines starting with '/':
@@ -27,6 +31,7 @@ HELP = """Anything you type goes to the MUD, except lines starting with '/':
   /goal <text>    tell Hex what you're trying to do
   /route [place]  show the way to somewhere you've been; /1 takes the next step
   /notes          list what Hex has noted.   /forget <title> removes one
+  /name           show the character name Hex last saw you log in with
   /gmcp           list the GMCP packets received so far
   /help, /quit    this text / leave.   //text sends "/text" literally."""
 
@@ -49,6 +54,10 @@ class Session:
         self.rooms = rooms or RoomDB(ROOMS_FILE)
         self.moves: deque[tuple[str, float]] = deque()   # typed moves awaiting a room change
         self.destination = ""
+        self.player_file = PLAYER_FILE
+        self.player = PLAYER_FILE.read_text().strip() if PLAYER_FILE.exists() else ""
+        self.last_line = ""             # last line typed with echo on; never a password
+        self.logged_in = False
         self.state = GameState()
         self.kb = KnowledgeBase(ROOT / "knowledge")
         goals = GOALS_FILE.read_text().strip() if GOALS_FILE.exists() else ""
@@ -69,6 +78,8 @@ class Session:
         if self.problem:
             self.ui.show_note(self.problem, "error")
         await self.conn.connect()
+        if self.player:
+            self.ui.show_note(f"Last played as {self.player}", "head")
         self.ui.show_note(f"connected to {self.conn.host}:{self.conn.port} — /help for Hex commands", "dim")
 
     # ---- server -> us --------------------------------------------------
@@ -86,6 +97,10 @@ class Session:
         elif ev.kind == "gmcp":
             before = self.state.room_id
             moved = self.state.add_gmcp(ev.package, ev.data)
+            if ev.package == "room.info":
+                self.logged_in = True
+            elif ev.package == "char.info" and isinstance(ev.data, dict):
+                self._remember_player(ev.data.get("capname") or ev.data.get("name"))
             if moved:
                 self._record_move(before, ev.data)
             self.ui.show_state()
@@ -95,6 +110,16 @@ class Session:
         elif ev.kind in ("echo_off", "echo_on"):
             self.state.hidden_input = ev.kind == "echo_off"
             self.ui.show_hidden(self.state.hidden_input)
+            # The game asks for a password straight after you give your name.
+            if self.state.hidden_input and not self.logged_in:
+                self._remember_player(self.last_line)
+
+    def _remember_player(self, name: object) -> None:
+        if (isinstance(name, str) and re.fullmatch(r"[A-Za-z]{2,}", name)
+                and name.lower() not in NOT_A_NAME and name.lower() != self.player.lower()):
+            self.player = name
+            self.player_file.parent.mkdir(parents=True, exist_ok=True)
+            self.player_file.write_text(name)
 
     def _record_move(self, before: str | None, info: dict) -> None:
         room = self.state.room_id
@@ -140,12 +165,29 @@ class Session:
             self.busy = False
             self.ui.show_thinking(False)
 
+    def complete(self, line: str, history: list[str]) -> str | None:
+        """Tab completion. Never offered at a password prompt."""
+        if self.state.hidden_input:
+            return None
+        advice = self.last.suggestions if self.last else []
+        words = line.rpartition(" ")[2]
+        return complete(line, Context(
+            suggestions=[s["command"] for s in advice],
+            exits=self.state.exits,
+            history=history[::-1],
+            words=recent_words(list(self.state.lines)[-15:]),
+            topics=self.kb.topics(),
+            rooms=[r.name for r in self.rooms.find(words)] if line.startswith("/route ") else [],
+            notes=list(self.kb.notes()) if line.startswith("/forget ") else []))
+
     def send(self, line: str) -> None:
         if not self.conn.writer:
             self.ui.show_note("Not connected yet.", "error")
             return
-        if not self.state.hidden_input and is_move(line, self.state.exits):
-            self.moves.append((normalise(line), time.time()))
+        if not self.state.hidden_input:
+            self.last_line = line.strip()
+            if is_move(line, self.state.exits):
+                self.moves.append((normalise(line), time.time()))
         self.state.add_command(line)
         self.conn.send(line)
 
@@ -234,6 +276,8 @@ class Session:
             if self.advisor:
                 self.advisor.goals = arg.strip()
             self.ui.show_note("goal noted.")
+        elif cmd == "name":
+            self.ui.show_note(self.player or "Hex hasn't seen you log in yet.")
         elif cmd == "gmcp":
             self.ui.show_note(", ".join(sorted(self.state.gmcp)) or "No GMCP packets yet.")
         else:

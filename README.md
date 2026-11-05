@@ -29,16 +29,18 @@ Exits: north, east and west.
 
 ## Quick start
 
-Python 3.10+. Hex itself has no dependencies; the split-screen interface needs
-[Textual](https://textual.textualize.io/).
+Python 3.10+ and [uv](https://docs.astral.sh/uv/). Hex itself has no dependencies;
+the split-screen interface needs [Textual](https://textual.textualize.io/), which
+`uv run` installs for you.
 
 ```bash
 git clone https://github.com/AidanJones/hex
 cd hex
 cp .env.example .env       # then add your API key
-pip install textual        # optional: the split-screen interface
-python -m hex
+uv run python -m hex
 ```
+
+Without uv: `pip install textual` (optional), then `python -m hex`.
 
 With Textual you get the game on the left and, on the right, a minimap with the
 room name and exits, HP/GP bars, and Hex's latest advice. The password box hides
@@ -50,7 +52,7 @@ If the map stays empty, type `/gmcp` to see which packets have arrived, and try
 
 ## What Hex knows
 
-- **Official guides:** `python -m hex.guides` saves Discworld's newbie guides and key
+- **Official guides:** `uv run python -m hex.guides` saves Discworld's newbie guides and key
   concept pages to `knowledge/cache/` (about 2 minutes, `--all` for every concept
   page). They're copyright Discworld MUD, so they stay in that git-ignored folder.
 - **In-game help:** Hex can offer a help page as a suggestion. Choosing it reads the
@@ -60,6 +62,8 @@ If the map stays empty, type `/gmcp` to see which packets have arrived, and try
   so check these now and then.
 - **Where you've been:** every room you walk through goes into `rooms.db`. `/route
   <place>` shows the way, one step at a time, using only moves you've made.
+- **Your character name:** saved to `player.txt` when you log in, and shown when you
+  connect or type `/name`. Your password is never saved.
 - **Your own material:** drop `.md` files into `knowledge/`. The community wiki isn't
   imported automatically, because its `robots.txt` bars Claude's crawler by name.
 
@@ -68,7 +72,7 @@ command-line flags override it. Supported backends (`HEX_BACKEND`):
 
 | backend | key | default model |
 |---|---|---|
-| `minimax` | `MINIMAX_API_KEY` | `MiniMax-M2.5` |
+| `minimax` | `MINIMAX_API_KEY` | `MiniMax-M3` |
 | `anthropic` | `ANTHROPIC_API_KEY` | `claude-sonnet-5-5` |
 | `openai` | any OpenAI-compatible server (Ollama, LM Studio, llama.cpp) via `HEX_BASE_URL` | set `HEX_MODEL` |
 
@@ -93,7 +97,10 @@ Everything you type goes to the MUD, except lines starting with `/`:
 | `//text` | send a line that starts with `/` |
 
 In the split screen, F6 asks Hex, Up/Down recall commands, PageUp/PageDown scroll
-the game text and Ctrl+Q quits.
+the game text and Ctrl+Q quits. Tab accepts the grey completion, which draws on
+Hex's suggestions, exits, your history, words in recent game text and known help
+pages. It only fills in the box; you still press Enter. Drag with the mouse to select
+text, and Ctrl+C copies it.
 
 ## How it works
 

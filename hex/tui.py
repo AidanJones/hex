@@ -5,14 +5,20 @@ Timers and GMCP updates only ever redraw.
 """
 from __future__ import annotations
 
+import subprocess
+import sys
+
 from rich.ansi import AnsiDecoder
 from rich.errors import StyleSyntaxError
 from rich.style import Style
 from rich.text import Text
+from textual.actions import SkipAction
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.content import Content
+from textual.strip import Strip
+from textual.suggester import Suggester
 from textual.widgets import Input, RichLog, Static
 
 from .advisor import Advice
@@ -92,8 +98,43 @@ def render_advice(a: Advice) -> Text:
     return out
 
 
+class GameLog(RichLog):
+    """RichLog with mouse selection, which Textual only provides on its plain Log."""
+
+    ALLOW_SELECT = True
+
+    def get_selection(self, selection):
+        return selection.extract("\n".join(line.text for line in self.lines)), "\n"
+
+    def selection_updated(self, selection) -> None:
+        self._line_cache.clear()
+        self.refresh()
+
+    def _render_line(self, y: int, scroll_x: int, width: int) -> Strip:
+        line = super()._render_line(y, scroll_x, width)
+        selection = self.text_selection
+        span = selection.get_span(y) if selection and y < len(self.lines) else None
+        if span:
+            start, end = span
+            end = self.lines[y].cell_length if end == -1 else end
+            before, chosen, after = line.divide([start, end, line.cell_length])
+            style = self.screen.get_component_rich_style("screen--selection")
+            line = Strip.join([before, chosen.apply_style(style), after])
+        return line.apply_offsets(scroll_x, y)
+
+
+class ContextSuggester(Suggester):
+    def __init__(self, app: "HexApp") -> None:
+        super().__init__(use_cache=False, case_sensitive=True)     # the context keeps changing
+        self.hex_app = app
+
+    async def get_suggestion(self, value: str) -> str | None:
+        return self.hex_app.session.complete(value, self.hex_app.query_one(CommandInput).past)
+
+
 class CommandInput(Input):
-    BINDINGS = [Binding("up", "history(-1)", show=False), Binding("down", "history(1)", show=False)]
+    BINDINGS = [Binding("up", "history(-1)", show=False), Binding("down", "history(1)", show=False),
+                Binding("tab", "accept_suggestion", show=False)]
 
     def __init__(self, **kw) -> None:
         super().__init__(**kw)
@@ -104,6 +145,11 @@ class CommandInput(Input):
         if line and line != (self.past[-1] if self.past else None):
             self.past.append(line)
         self.past_pos = len(self.past)
+
+    def action_accept_suggestion(self) -> None:
+        if self._suggestion:
+            self.value = self._suggestion
+            self.cursor_position = len(self.value)
 
     def action_history(self, step: int) -> None:
         if self.password or not self.past:
@@ -128,6 +174,7 @@ class HexApp(App, UI):
     BINDINGS = [
         *[Binding(f"f{n}", f"pick({n})", show=False, priority=True) for n in range(1, 6)],
         Binding("f6", "ask", show=False, priority=True),
+        Binding("ctrl+c", "copy_selection", show=False, priority=True),
         Binding("pageup", "scroll_log(-1)", show=False, priority=True),
         Binding("pagedown", "scroll_log(1)", show=False, priority=True),
     ]
@@ -142,8 +189,8 @@ class HexApp(App, UI):
     def compose(self) -> ComposeResult:
         with Horizontal():
             with Vertical(id="game"):
-                yield RichLog(id="log", wrap=True, max_lines=5000, min_width=20)
-                yield CommandInput(id="input", placeholder=PLACEHOLDER)
+                yield GameLog(id="log", wrap=True, max_lines=5000, min_width=20)
+                yield CommandInput(id="input", placeholder=PLACEHOLDER, suggester=ContextSuggester(self))
             with Vertical(id="side"):
                 yield Static(Text("No map yet", style="dim"), id="map")
                 yield Static(render_vitals({}), id="vitals")
@@ -194,6 +241,19 @@ class HexApp(App, UI):
 
     def action_ask(self) -> None:
         self.run_worker(self.session.ask(""))
+
+    def action_copy_selection(self) -> None:
+        text = self.screen.get_selected_text()
+        if not text:
+            raise SkipAction()              # let the input box copy its own selection
+        self.copy_to_clipboard(text)
+        if sys.platform == "win32":         # not every Windows terminal honours the escape code
+            subprocess.run("clip", input=text.encode("utf-16-le"), shell=True, check=False)
+        self.screen.clear_selection()
+        self.notify("Copied", timeout=1.5)
+
+    def on_mouse_up(self) -> None:
+        self.query_one(CommandInput).focus()    # keep typing after selecting text
 
     def action_scroll_log(self, direction: int) -> None:
         log = self.query_one("#log", RichLog)

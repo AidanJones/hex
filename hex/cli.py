@@ -88,7 +88,7 @@ def main() -> None:
         try:
             from .tui import HexApp
         except ImportError:
-            print(f"{DIM}Plain mode. For the map and panels: pip install textual{RST}")
+            print(f"{DIM}Plain mode. For the map and panels: uv run python -m hex, or pip install textual{RST}")
         else:
             HexApp(args).run()
             return

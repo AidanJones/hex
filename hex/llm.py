@@ -76,7 +76,7 @@ def minimax(model: str | None = None) -> OpenAICompatLLM:
     if not os.environ.get("MINIMAX_API_KEY"):
         raise LLMError("Set MINIMAX_API_KEY in .env.")
     return OpenAICompatLLM(
-        model or os.environ.get("HEX_MODEL", "MiniMax-M2.5"),
+        model or os.environ.get("HEX_MODEL", "MiniMax-M3"),
         # Global endpoint; mainland-China accounts use https://api.minimaxi.com/v1
         os.environ.get("HEX_BASE_URL", "https://api.minimax.io/v1"),
         key_env="MINIMAX_API_KEY",
