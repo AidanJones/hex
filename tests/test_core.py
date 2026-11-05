@@ -3,10 +3,10 @@ import json
 import unittest
 from pathlib import Path
 
-from dwcopilot.advisor import Advice, Advisor
-from dwcopilot.knowledge import KnowledgeBase
-from dwcopilot.state import GameState
-from dwcopilot.telnet import (DO, GA, IAC, OPT_ECHO, OPT_GMCP, SB, SE, WILL, WONT,
+from hex.advisor import Advice, Advisor
+from hex.knowledge import KnowledgeBase
+from hex.state import GameState
+from hex.telnet import (DO, GA, IAC, OPT_ECHO, OPT_GMCP, SB, SE, WILL, WONT,
                               MudConnection, TelnetParser, gmcp_frame)
 
 ROOT = Path(__file__).resolve().parent.parent

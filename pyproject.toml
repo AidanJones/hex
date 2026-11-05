@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "discworld-copilot"
+name = "hex"
 version = "0.1.0"
-description = "Discworld MUD client with an LLM co-pilot that advises, never plays"
+description = "Discworld MUD client with an LLM thinking engine that advises, never plays"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
@@ -13,7 +13,7 @@ authors = [{ name = "Aidan Jones" }]
 dependencies = []
 
 [project.scripts]
-dwcopilot = "dwcopilot.cli:main"
+hex = "hex.cli:main"
 
 [tool.setuptools]
-packages = ["dwcopilot"]
+packages = ["hex"]

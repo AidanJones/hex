@@ -5,7 +5,7 @@ online. Display-only client features (colours, gauges, gagging spam, sounds,
 maps) are fine. Anything that sends commands to the MUD without you typing them
 risks a ban. Read `help rules` in game and ask a creator if unsure.
 
-This co-pilot therefore only advises. You choose and send every command,
+Hex therefore only advises. You choose and send every command,
 including the numbered suggestions (/1, /2…), which are just a shortcut for
 typing what you have read.
 

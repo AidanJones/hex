@@ -155,7 +155,7 @@ class MudConnection:
                 self.writer.write(reply)
             for ev in events:
                 if ev.kind == "gmcp_ready":
-                    self.writer.write(gmcp_frame("Core.Hello", {"client": "dw-copilot", "version": "0.1"}))
+                    self.writer.write(gmcp_frame("Core.Hello", {"client": "dw-hex", "version": "0.1"}))
                     self.writer.write(gmcp_frame("Core.Supports.Set", DISCWORLD_GMCP))
                 self.on_event(ev)
             await self.writer.drain()

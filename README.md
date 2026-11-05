@@ -1,21 +1,23 @@
-# discworld-copilot
+# Hex
 
-Play [Discworld MUD](http://discworld.starturtle.net/lpc/) with an LLM sitting
-beside you: it reads what the game shows you, the structured GMCP data, and a
-local library of help pages and notes, then **summarises what's going on and
-suggests what to type next**. You stay in charge. It never sends a command on
-its own.
+*Anthill Inside.*
+
+Play [Discworld MUD](http://discworld.starturtle.net/lpc/) with Hex at your
+elbow. Named after the Unseen University's thinking engine, Hex is an LLM that
+reads what the game shows you, the structured GMCP data, and a local library of
+help pages and notes, then **explains what's going on and suggests what to type
+next**. You stay in charge. It never sends a command on its own.
 
 Why: Discworld is wonderful and famously hard to get into. Commands need full
 words, systems are spread across in-game help, a wiki and old fan sites, and
-new players often wander without a sense of what to do next. This is a
-patient, well-read friend for those first weeks.
+new players often wander without a sense of what to do next. Hex is a patient,
+well-read friend for those first weeks.
 
 ```
 You are in the Pumpkin Town square. A pumpkin-headed man sells maps here.
 Exits: north, east and west.
 /a what should I do first?
-┌─ co-pilot ─────────────────────────────
+┌─ Hex ─────────────────────────────
 │ You're in the tutorial town square. The map seller is worth a look.
 │ /1  look man          — see what the seller offers
 │ /2  map               — get your bearings
@@ -30,16 +32,16 @@ Exits: north, east and west.
 Python 3.10+, no dependencies.
 
 ```bash
-git clone https://github.com/AidanJones/discworld-copilot
-cd discworld-copilot
+git clone https://github.com/AidanJones/hex
+cd hex
 export ANTHROPIC_API_KEY=sk-ant-...
-python -m dwcopilot              # --port 4242 if port 23 is blocked
+python -m hex              # --port 4242 if port 23 is blocked
 ```
 
 Local models work too, through any OpenAI-compatible server:
 
 ```bash
-DWC_BASE_URL=http://localhost:11434/v1 python -m dwcopilot --backend openai --model qwen3:14b
+DWC_BASE_URL=http://localhost:11434/v1 python -m hex --backend openai --model qwen3:14b
 ```
 
 ## Commands
@@ -48,7 +50,7 @@ Everything you type goes to the MUD, except lines starting with `/`:
 
 | command | does |
 |---|---|
-| `/a [question]` | ask the co-pilot; blank = "what's happening, what next?" |
+| `/a [question]` | ask Hex; blank = "what's happening, what next?" |
 | `/1` … `/5` | send that suggestion (your choice, your keypress) |
 | `/auto` | toggle advice each time you enter a new room (rate-limited) |
 | `/learn <topic>` | sends `help <topic>` and saves the page to `knowledge/cache/` |
@@ -85,12 +87,12 @@ something is OK, ask a creator. Please keep it that way in any fork.
 
 ## Roadmap
 
-- [ ] Split-pane TUI (game left, co-pilot right) with Textual
+- [ ] Split-pane TUI (game left, Hex right) with Textual
 - [ ] Use Discworld's `room.writtenmap` / map frames for "how do I get to X"
 - [ ] Import selected pages from the community wiki into `knowledge/` (with credit)
 - [ ] Explain mode: highlight any line and ask "what does this mean?"
 - [ ] Session memory: a running journal of quests, NPCs and places across sessions
-- [ ] Web front end (browser client + co-pilot panel)
+- [ ] Web front end (browser client + Hex panel)
 
 ## Prior art
 

@@ -1,12 +1,12 @@
-"""Terminal front end: plays the MUD normally, with an LLM co-pilot on demand.
+"""Terminal front end: plays the MUD normally, with Hex, an LLM thinking engine, on demand.
 
 Anything you type goes to the MUD, except lines starting with '/':
-  /a [question]   ask the co-pilot (summary + numbered suggestions)
+  /a [question]   ask Hex (summary + numbered suggestions)
   /1 .. /5        send suggestion N (you choose it; nothing is sent automatically)
   /auto           toggle advice whenever you enter a new room
   /learn <topic>  send `help <topic>` and save the page to the knowledge base
   /docs <query>   search local notes without calling the LLM
-  /goal <text>    tell the co-pilot what you're trying to do
+  /goal <text>    tell Hex what you're trying to do
   /help, /quit    this text / leave.   //text sends "/text" literally.
 """
 from __future__ import annotations
@@ -36,7 +36,7 @@ GOALS_FILE = ROOT / "knowledge" / "cache" / "goals.txt"
 
 def show_advice(a: Advice) -> None:
     w = sys.stdout.write
-    w(f"\n{CYAN}┌─ co-pilot ─────────────────────────────{RST}\n")
+    w(f"\n{CYAN}┌─ Hex ─────────────────────────────{RST}\n")
     if a.summary:
         w(f"{CYAN}│{RST} {a.summary}\n")
     if a.explain:
@@ -57,7 +57,7 @@ class App:
         try:
             self.advisor: Advisor | None = Advisor(make_llm(args.backend, args.model), self.kb, goals)
         except LLMError as e:
-            print(f"{RED}co-pilot disabled: {e}{RST}")
+            print(f"{RED}Hex disabled: {e}{RST}")
             self.advisor = None
         self.conn = MudConnection(args.host, args.port, on_event=self.on_event)
         self.auto = args.auto
@@ -102,17 +102,17 @@ class App:
     # ---- us -> server --------------------------------------------------
     async def ask(self, question: str) -> None:
         if not self.advisor:
-            print(f"{RED}co-pilot is off (no API key / backend).{RST}")
+            print(f"{RED}Hex is off (no API key / backend).{RST}")
             return
         if self.busy:
             return
         self.busy = True
-        print(f"{DIM}[co-pilot thinking…]{RST}")
+        print(f"{DIM}[Hex thinking…]{RST}")
         try:
             self.last = await asyncio.to_thread(self.advisor.advise, self.state, question)
             show_advice(self.last)
         except LLMError as e:
-            print(f"{RED}co-pilot error: {e}{RST}")
+            print(f"{RED}+++ Out Of Cheese Error +++ {e}{RST}")
         finally:
             self.busy = False
 
@@ -169,7 +169,7 @@ class App:
 
     async def main(self) -> None:
         await self.conn.connect()
-        print(f"{DIM}connected to {self.conn.host}:{self.conn.port} — /help for co-pilot commands{RST}")
+        print(f"{DIM}connected to {self.conn.host}:{self.conn.port} — /help for Hex commands{RST}")
         net = asyncio.create_task(self.conn.run())
         keys = asyncio.create_task(self.input_loop())
         await asyncio.wait({net, keys}, return_when=asyncio.FIRST_COMPLETED)
@@ -177,7 +177,7 @@ class App:
 
 
 def main() -> None:
-    p = argparse.ArgumentParser(prog="dwcopilot", description="Discworld MUD with an LLM co-pilot")
+    p = argparse.ArgumentParser(prog="hex", description="Discworld MUD with Hex, an LLM thinking engine, at your elbow")
     p.add_argument("--host", default="discworld.starturtle.net")
     p.add_argument("--port", type=int, default=23, help="23, or 4242 if 23 is blocked")
     p.add_argument("--backend", choices=["anthropic", "openai"], default="anthropic",
