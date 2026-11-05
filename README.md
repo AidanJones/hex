@@ -34,15 +34,21 @@ Python 3.10+, no dependencies.
 ```bash
 git clone https://github.com/AidanJones/hex
 cd hex
-export ANTHROPIC_API_KEY=sk-ant-...
-python -m hex              # --port 4242 if port 23 is blocked
+cp .env.example .env       # then add your API key
+python -m hex
 ```
 
-Local models work too, through any OpenAI-compatible server:
+Settings live in `.env` (git-ignored); real environment variables and
+command-line flags override it. Supported backends (`HEX_BACKEND`):
 
-```bash
-DWC_BASE_URL=http://localhost:11434/v1 python -m hex --backend openai --model qwen3:14b
-```
+| backend | key | default model |
+|---|---|---|
+| `minimax` | `MINIMAX_API_KEY` | `MiniMax-M2.5` |
+| `anthropic` | `ANTHROPIC_API_KEY` | `claude-sonnet-5-5` |
+| `openai` | any OpenAI-compatible server (Ollama, LM Studio, llama.cpp) via `HEX_BASE_URL` | set `HEX_MODEL` |
+
+Override the model with `HEX_MODEL` or `--model`. Reasoning models that print
+`<think>` blocks are handled: the thinking is stripped before Hex reads the answer.
 
 ## Commands
 

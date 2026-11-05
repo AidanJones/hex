@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import getpass
+import os
 import sys
 import time
 from pathlib import Path
@@ -24,6 +25,7 @@ except ImportError:
     pass
 
 from .advisor import Advice, Advisor
+from .env import load_dotenv
 from .knowledge import KnowledgeBase
 from .llm import LLMError, make_llm
 from .state import GameState
@@ -177,11 +179,13 @@ class App:
 
 
 def main() -> None:
+    load_dotenv(Path.cwd() / ".env", ROOT / ".env")
+    env = os.environ.get
     p = argparse.ArgumentParser(prog="hex", description="Discworld MUD with Hex, an LLM thinking engine, at your elbow")
-    p.add_argument("--host", default="discworld.starturtle.net")
-    p.add_argument("--port", type=int, default=23, help="23, or 4242 if 23 is blocked")
-    p.add_argument("--backend", choices=["anthropic", "openai"], default="anthropic",
-                   help="openai = any OpenAI-compatible server (Ollama, LM Studio…)")
+    p.add_argument("--host", default=env("HEX_HOST", "discworld.starturtle.net"))
+    p.add_argument("--port", type=int, default=int(env("HEX_PORT", "23")), help="23, or 4242 if 23 is blocked")
+    p.add_argument("--backend", choices=["anthropic", "minimax", "openai"], default=env("HEX_BACKEND", "anthropic"),
+                   help="minimax = MiniMax API (MINIMAX_API_KEY); openai = any OpenAI-compatible server (Ollama, LM Studio…)")
     p.add_argument("--model", default=None)
     p.add_argument("--auto", action="store_true", help="advise automatically on room change")
     args = p.parse_args()
