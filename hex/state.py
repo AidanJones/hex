@@ -2,11 +2,18 @@
 from __future__ import annotations
 
 import json
+import re
 import time
 from collections import deque
 from dataclasses import dataclass, field
 
 from .telnet import strip_ansi
+
+EXITS_RE = re.compile(r"(?:obvious exits?|^Exits):\s*(.*)", re.I)
+
+
+def split_exits(text: str) -> list[str]:
+    return [e.strip() for e in re.split(r",|\band\b", text.rstrip(" .")) if e.strip()]
 
 
 @dataclass
@@ -17,7 +24,9 @@ class GameState:
     room_id: str | None = None
     room_changed_at: float = 0.0
     hidden_input: bool = False                       # True while server hides echo (password)
+    exits: list = field(default_factory=list)        # from room text; GMCP doesn't send them
     _partial: str = ""
+    _exits_text: str | None = None                   # exit list still wrapping onto the next line
 
     def add_text(self, text: str) -> None:
         text = self._partial + strip_ansi(text).replace("\r", "")
@@ -25,6 +34,19 @@ class GameState:
         for ln in complete:
             if ln.strip():
                 self.lines.append(ln)
+                self._scan_exits(ln)
+
+    def _scan_exits(self, line: str) -> None:
+        m = EXITS_RE.search(line)
+        if m:
+            self._exits_text = m.group(1)
+        elif self._exits_text is not None:
+            self._exits_text += " " + line.strip()
+        else:
+            return
+        self.exits = split_exits(self._exits_text)
+        if self._exits_text.rstrip().endswith("."):
+            self._exits_text = None
 
     def flush_prompt(self) -> None:
         if self._partial.strip():
@@ -37,12 +59,16 @@ class GameState:
 
     def add_gmcp(self, package: str, data: object) -> bool:
         """Store a packet. Returns True if it means we moved room."""
+        old = self.gmcp.get(package)
+        if package == "char.vitals" and isinstance(old, dict) and isinstance(data, dict):
+            data = {**old, **data}                   # packets can carry only what changed
         self.gmcp[package] = data
         if package == "room.info" and isinstance(data, dict):
             rid = str(data.get("identifier") or data.get("id") or data.get("name"))
             if rid != self.room_id:
                 self.room_id = rid
                 self.room_changed_at = time.time()
+                self.exits, self._exits_text = [], None
                 return True
         return False
 

@@ -29,14 +29,23 @@ Exits: north, east and west.
 
 ## Quick start
 
-Python 3.10+, no dependencies.
+Python 3.10+. Hex itself has no dependencies; the split-screen interface needs
+[Textual](https://textual.textualize.io/).
 
 ```bash
 git clone https://github.com/AidanJones/hex
 cd hex
 cp .env.example .env       # then add your API key
+pip install textual        # optional: the split-screen interface
 python -m hex
 ```
+
+With Textual you get the game on the left and, on the right, a minimap with the
+room name and exits, HP/GP bars, and Hex's latest advice. The password box hides
+itself the moment the game asks. Below 90 columns the right side folds away.
+Without Textual, or with `--plain`, Hex is a plain scrolling terminal.
+
+If the map stays empty, type `/gmcp` to see which packets have arrived.
 
 Settings live in `.env` (git-ignored); real environment variables and
 command-line flags override it. Supported backends (`HEX_BACKEND`):
@@ -57,12 +66,16 @@ Everything you type goes to the MUD, except lines starting with `/`:
 | command | does |
 |---|---|
 | `/a [question]` | ask Hex; blank = "what's happening, what next?" |
-| `/1` … `/5` | send that suggestion (your choice, your keypress) |
+| `/1` … `/5` | send that suggestion (your choice, your keypress); F1–F5 do the same in the split screen |
 | `/auto` | toggle advice each time you enter a new room (rate-limited) |
 | `/learn <topic>` | sends `help <topic>` and saves the page to `knowledge/cache/` |
 | `/docs <query>` | search local notes, no LLM call |
 | `/goal <text>` | tell it what you're aiming for ("join the witches", "earn money in AM") |
+| `/gmcp` | list the GMCP packets received so far |
 | `//text` | send a line that starts with `/` |
+
+In the split screen, F6 asks Hex, Up/Down recall commands, PageUp/PageDown scroll
+the game text and Ctrl+Q quits.
 
 ## How it works
 
@@ -93,7 +106,7 @@ something is OK, ask a creator. Please keep it that way in any fork.
 
 ## Roadmap
 
-- [ ] Split-pane TUI (game left, Hex right) with Textual
+- [x] Split-pane TUI (game left, Hex right) with Textual
 - [ ] Use Discworld's `room.writtenmap` / map frames for "how do I get to X"
 - [ ] Import selected pages from the community wiki into `knowledge/` (with credit)
 - [ ] Explain mode: highlight any line and ask "what does this mean?"
@@ -107,6 +120,8 @@ something is OK, ask a creator. Please keep it that way in any fork.
   [Mudlet DiscworldUI](https://wiki.mudlet.org/w/DiscworldUI): GMCP mapping/status for Mudlet.
 - [mcp-telnet](https://github.com/distantorigin/mcp-telnet/): lets an LLM drive a telnet session.
 - dikuclient's `/howto` (draft PR): LLM command help for Diku MUDs.
+- [rgrams/discworld_mud_plugins](https://github.com/rgrams/discworld_mud_plugins):
+  the source for how Hex decodes `room.map` and `char.vitals`.
 
 ## Licence
 

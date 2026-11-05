@@ -130,9 +130,10 @@ def gmcp_frame(package: str, data: object = None) -> bytes:
     return bytes([IAC, SB, OPT_GMCP]) + body.encode() + bytes([IAC, SE])
 
 
-# Packages Discworld documents in `help gmcp`. Unknown ones are harmless.
-DISCWORLD_GMCP = ["char.login 1", "char.vitals 1", "char.info 1",
-                  "room.info 1", "room.map 1", "room.writtenmap 1"]
+# Packages Discworld documents in `help gmcp`. No version suffixes: this is the
+# form the community's working MUSHclient plugin sends.
+DISCWORLD_GMCP = ["char.login", "char.vitals", "char.info",
+                  "room.info", "room.map", "room.writtenmap"]
 
 
 @dataclass
