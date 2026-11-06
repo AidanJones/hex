@@ -42,8 +42,9 @@ uv run python -m hex
 
 Without uv: `pip install textual` (optional), then `python -m hex`.
 
-With Textual you get the game on the left and, on the right, a minimap with the
-room name and exits, HP/GP bars, and Hex's latest advice. The password box hides
+With Textual you get the game on the left and, on the right, a minimap with a key,
+the room name and exits, who's in sight, HP/GP bars, and Hex's latest advice. The map
+redraws the game's symbols as coloured icons. Hover over it to see what a symbol means, the way to that room, and who's there. The password box hides
 itself the moment the game asks. Below 90 columns the right side folds away.
 Without Textual, or with `--plain`, Hex is a plain scrolling terminal.
 

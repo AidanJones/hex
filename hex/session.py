@@ -141,6 +141,8 @@ class Session:
         elif ev.kind == "gmcp":
             before = self.state.room_id
             moved = self.state.add_gmcp(ev.package, ev.data)
+            if ev.package in ("room.map", "room.writtenmap"):
+                self._log_line(f"{ev.package} {json.dumps(ev.data)}")    # to check our parsing
             if ev.package == "room.info":
                 self.logged_in = True
                 self._remember_player(self.name_typed)

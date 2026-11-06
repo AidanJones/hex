@@ -22,35 +22,66 @@ from textual.suggester import Suggester
 from textual.widgets import Input, RichLog, Static
 
 from .advisor import Advice
-from .minimap import parse_map
+from .minimap import describe_cell, legend, parse_map, parse_written
 from .session import Session, UI
 
 NOTE_STYLES = {"dim": "dim", "head": "cyan", "error": "red", "": ""}
-PLAYER = "yellow"           # Discworld colours the player's room yellow
+# The game only colours maps for some terminal types, so colour by meaning as well.
+SYMBOL_COLOURS = {"@": "yellow", "*": "cyan", "$": "green", "&": "green", "+": "red"}
+PATHS = "-|/\\"
+# One column each. Real emoji take two, which would break the grid and hover positions.
+ICONS = {"@": "◆", "*": "○", "$": "●", "&": "◉", "+": "▪",
+         "-": "─", "|": "│", "/": "╱", "\\": "╲"}
 MIN_WIDTH_FOR_PANELS = 90
+MAX_WIDTH_FOR_SIDE_KEY = 22
 PLACEHOLDER = "Type to the game, /a to ask Hex, /help for more"
 
 
 def render_map(raw: object) -> Text:
+    """The game's map with a key beside it, or under it if the map is wide."""
     lines = parse_map(raw)
     width = max((sum(len(t) for t, _ in segs) for segs in lines), default=0)
-    out = Text(no_wrap=True, overflow="crop")
-    for i, segs in enumerate(lines):
-        if i:
-            out.append("\n")
-        for text, colour in segs:
-            out.append(text, _map_style(colour))
-        out.append(" " * (width - sum(len(t) for t, _ in segs)))
-    return out
+    key = [Text.assemble((_icons(symbol), _map_style(None, symbol[0])), " " * (4 - len(symbol)), (label, "dim"))
+           for symbol, label in legend(raw)]
+    beside = width <= MAX_WIDTH_FOR_SIDE_KEY
+    rows = []
+    for i in range(max(len(lines), len(key) if beside else 0)):
+        row = Text(no_wrap=True, overflow="crop")
+        for text, colour in lines[i] if i < len(lines) else []:
+            for char in text:
+                row.append(_icons(char), _map_style(colour, char))
+        if beside and i < len(key):
+            row.pad_right(width + 3 - row.cell_len)
+            row.append_text(key[i])
+        rows.append(row)
+    if not beside and key:
+        rows.append(Text("  ").join(key))
+    return Text("\n", no_wrap=True, overflow="crop").join(rows)
 
 
-def _map_style(colour: str | None) -> Style:
+def _icons(text: str) -> str:
+    return "".join(ICONS.get(c, c) for c in text)
+
+
+def _map_style(colour: str | None, char: str) -> Style:
+    """The game's colour if it sent one, otherwise one for what the symbol means."""
+    colour = colour or SYMBOL_COLOURS.get(char)
     if colour is None:
-        return Style(dim=True)
+        return Style(dim=True) if char in PATHS else Style(bold=True)
     try:
-        return Style.parse(f"bold {colour}" if colour == PLAYER else colour)
+        return Style.parse(f"bold reverse {colour}" if char == "@" else f"bold {colour}")
     except StyleSyntaxError:
         return Style.null()
+
+
+def render_nearby(places: dict) -> Text:
+    spots = sorted((p for p in places.values() if p.things), key=lambda p: len(p.moves))
+    if not spots:
+        return Text("Nobody in sight", style="dim")
+    rows = []
+    for spot in spots:
+        rows.append(Text.assemble((f"{spot.route}: ", "bold"), ", ".join(spot.things)))
+    return Text("\n").join(rows)
 
 
 def bar(label: str, value: object, top: object, width: int = 20) -> Text:
@@ -133,6 +164,17 @@ class GameLog(RichLog):
         return line.apply_offsets(scroll_x, y)
 
 
+class MapPanel(Static):
+    """Hovering over the map explains whatever is under the mouse."""
+
+    def on_mouse_move(self, event) -> None:
+        spot = event.get_content_offset(self)
+        gmcp = self.app.session.state.gmcp
+        words = describe_cell(gmcp.get("room.map"), parse_written(gmcp.get("room.writtenmap")),
+                              spot.x, spot.y) if spot else None
+        self.tooltip = Text(words) if words else None
+
+
 class ContextSuggester(Suggester):
     def __init__(self, app: "HexApp") -> None:
         super().__init__(use_cache=False, case_sensitive=True)     # the context keeps changing
@@ -177,7 +219,8 @@ class HexApp(App, UI):
     #log { height: 1fr; border: round $primary-darken-2; overflow-x: hidden; scrollbar-size-vertical: 1; }
     #input { border: round $accent; }
     #side { width: 44; }
-    #map { height: 15; border: round $primary-darken-2; content-align: center middle; }
+    #map { height: auto; min-height: 7; max-height: 15; border: round $primary-darken-2; padding: 0 1; }
+    #nearby { height: auto; max-height: 8; border: round $primary-darken-2; padding: 0 1; display: none; }
     #vitals { height: auto; min-height: 3; border: round $primary-darken-2; padding: 0 1; }
     #hex { height: 1fr; border: round $accent; padding: 0 1; scrollbar-size-vertical: 1; }
     """
@@ -202,7 +245,8 @@ class HexApp(App, UI):
                 yield GameLog(id="log", wrap=True, max_lines=5000, min_width=20)
                 yield CommandInput(id="input", placeholder=PLACEHOLDER, suggester=ContextSuggester(self))
             with Vertical(id="side"):
-                yield Static(Text("No map yet", style="dim"), id="map")
+                yield MapPanel(Text("No map yet", style="dim"), id="map")
+                yield Static(id="nearby")
                 yield Static(render_vitals({}), id="vitals")
                 with VerticalScroll(id="hex"):
                     yield Static(Text("/a or F6 to ask Hex what to do next.", style="dim"), id="advice")
@@ -213,6 +257,7 @@ class HexApp(App, UI):
         self.query_one("#hex").can_focus = False
         log.border_title = "Discworld"
         self.query_one("#map").border_title = "Map"
+        self.query_one("#nearby").border_title = "In sight"
         self.query_one("#vitals").border_title = "Vitals"
         self.query_one("#hex").border_title = "Hex"
         self.query_one("#input").focus()
@@ -315,6 +360,10 @@ class HexApp(App, UI):
         panel = self.query_one("#map", Static)
         if "room.map" in s.gmcp:
             panel.update(render_map(s.gmcp["room.map"]))
+        if "room.writtenmap" in s.gmcp:
+            nearby = self.query_one("#nearby", Static)
+            nearby.display = True
+            nearby.update(render_nearby(parse_written(s.gmcp["room.writtenmap"])))
         room = s.gmcp.get("room.info")
         name = room.get("name") if isinstance(room, dict) else None
         panel.border_title = Content(name or "Map")
